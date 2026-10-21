@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Jarvis Quest 2</title>
+    <!-- Librerías de Realidad Virtual (A-Frame) y Entorno WebXR -->
+    <script src="https://aframe.io"></script>
+    <style>
+        /* Estilos para el botón de hablar en la pantalla por si acaso */
+        #speech-btn {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 15px 30px; font-size: 18px; background: #007bff; color: white;
+            border: none; border-radius: 10px; z-index: 999; display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- BOTÓN DE RESPALDO PARA PANTALLA -->
+    <button id="speech-btn">Hablar con Jarvis</button>
+
+    <!-- ESCENA 3D / REALIDAD MIXTA -->
+    <!-- 'webxr="optionalFeatures: passthrough, hand-tracking"' activa las funciones de las Quest -->
+    <a-scene webxr="optionalFeatures: passthrough, hand-tracking">
+        
+        <!-- CÁMARA Y CONFIGURACIÓN DE MANOS -->
+        
+            <a-camera position="0 1.6 0"></a-camera>
+            <!-- Manos virtuales que siguen tus manos reales y te permiten agarrar cosas -->
+            
+            
+        
+
+        <!-- LUZ BÁSICA -->
+        
+        
+
+        <!-- CONTENEDOR DONDE JARVIS APARECERÁ LOS OBJETOS -->
+        
+
+    </a-scene>
+
+    <script>
+        // CONFIGURACIÓN - PON AQUÍ TU API KEY DE GOOGLE
+        const GEMINI_API_KEY = "AQ.Ab8RN6JApngztRuFAlCTY6Q71GmaEZKZDGheBItriHrRJ_qMXw"; 
+        
+        const espacio = document.getElementById('espacio-jarvis');
+        
+        // 1. RECONOCIMIENTO DE VOZ (Escuchar lo que dices)
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Recognition) {
+            alert("Tu navegador no soporta reconocimiento de voz. Usa Meta Quest Browser.");
+        }
+        
+        const reconocimiento = new Recognition();
+        reconocimiento.lang = 'es-ES';
+        reconocimiento.continuous = false;
+
+        // Activar la escucha al tocar la pantalla o presionar el gatillo en VR
+        window.addEventListener('click', () => {
+            reconocimiento.start();
+            console.log("Escuchando...");
+        });
+
+        reconocimiento.onresult = async (event) => {
+            const textoDicho = event.results[0][0].transcript;
+            console.log("Dijiste: " + textoDicho);
+            
+            // Enviar lo que dijiste al cerebro de Jarvis (Gemini)
+            await hablarConJarvis(textoDicho);
+        };
+
+        // 2. EL CEREBRO DE JARVIS (Llamada a la IA)
+        async function hablarConJarvis(mensajeUsuario) {
+            // Le damos instrucciones estrictas a Gemini para que actúe como Jarvis y cree objetos usando comandos especiales
+            const promptInstrucciones = `Eres Jarvis, un asistente de realidad mixta avanzada. El usuario te pedirá cosas. Si te pide aparecer, crear o darte un objeto (como un cubo, una esfera, un cilindro, una pantalla), debes responder amablemente y al FINAL de tu respuesta debes incluir exactamente la etiqueta técnica del objeto.
+            Formatos válidos de etiquetas que debes incluir si te piden un objeto:
+            [CREAR:CUBO]
+            [CREAR:ESFERA]
+            [CREAR:CILINDRO]
+            
+            Ejemplo de respuesta si te piden un cubo: "Por supuesto señor, aquí tiene el cubo que solicitó. [CREAR:CUBO]"
+            Si no te piden ningún objeto, solo responde textualmente de forma cortés y breve.
+            
+            Pregunta del usuario: ${mensajeUsuario}`;
+
+            try {
+                const response = await fetch(`https://googleapis.com{GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: promptInstrucciones }] }]
+                    })
+                });
+
+                const data = await response.json();
+                const respuestaIA = data.candidates[0].content.parts[0].text;
+                
+                // Procesar lo que respondió Jarvis
+                analizarRespuestaJarvis(respuestaIA);
+
+            } catch (error) {
+                console.error("Error con Jarvis:", error);
+            }
+        }
+
+        // 3. ANALIZAR LA RESPUESTA Y CREAR OBJETOS EN EL AIRE
+        function analizarRespuestaJarvis(texto) {
+            // Limpiar las etiquetas del texto para que la voz no las lea
+            let textoLimpio = texto.replace(/\[CREAR:.*?\]/g, '');
+            
+            // Hacer que Jarvis hable en voz alta
+            responderConVoz(textoLimpio);
+
+            // Verificar si la IA ordenó crear un objeto en el aire
+            if (texto.includes('[CREAR:CUBO]')) {
+                crearObjetoVirtual('a-box', '#00e1ff');
+            } else if (texto.includes('[CREAR:ESFERA]')) {
+                crearObjetoVirtual('a-sphere', '#ff0077');
+            } else if (texto.includes('[CREAR:CILINDRO]')) {
+                crearObjetoVirtual('a-cylinder', '#ffcc00');
+            }
+        }
+
+        // Función física para materializar el objeto en tu cuarto virtual
+        function crearObjetoVirtual(tipo, color) {
+            // Eliminar objetos anteriores para no saturar
+            espacio.innerHTML = ''; 
+            
+            const objeto = document.createElement(tipo);
+            objeto.setAttribute('color', color);
+            objeto.setAttribute('scale', '0.3 0.3 0.3'); // Tamaño en metros (30cm)
+            
+            // Posición inicial flotando frente a ti
+            objeto.setAttribute('position', '0 0 0'); 
+            
+            // Hacerlo interactuable con las manos del Quest (activar componentes interactivos básicos)
+            objeto.setAttribute('class', 'clickable');
+            
+            espacio.appendChild(objeto);
+            console.log("Objeto creado en el aire: " + tipo);
+        }
+
+        // 4. VOZ DE JARVIS (Sintetizador de texto a voz)
+        function responderConVoz(texto) {
+            const lectura = new SpeechSynthesisUtterance(texto);
+            lectura.lang = 'es-ES';
+            // Buscar una voz que suene robótica o elegante si está disponible
+            const voces = window.speechSynthesis.getVoices();
+            if(voces.length > 0) {
+                lectura.voice = voces.find(v => v.lang.includes('es')) || voces[0];
+            }
+            window.speechSynthesis.speak(lectura);
+        }
+    </script>
+</body>
+</html>
